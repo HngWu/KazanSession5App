@@ -60,12 +60,15 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.kazansession5app.HttpService.httpcreatewell
 import com.example.kazansession5app.HttpService.httpgetwells
 import com.example.kazansession5app.Models.RockType
 import com.example.kazansession5app.Models.Well
 import com.example.kazansession5app.Models.WellLayer
 import com.example.kazansession5app.ui.theme.KazanSession5AppTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -76,7 +79,7 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
-            NavHost(navController = navController, startDestination = "addWell") {
+            NavHost(navController = navController, startDestination = "well") {
                 composable("well") {
                     WellsScreen(
                         navController = navController,
@@ -160,7 +163,7 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
-        layers.add(WellLayer(0, 0, 0, from, to, layerName, "#FFFFFF"))
+        layers.add(WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
         fromDepth = ""
         toDepth = ""
         layerName = ""
@@ -178,10 +181,29 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
-        // Save the well to the database (pseudo code)
-        // saveWellToDatabase(Well(...))
+        val newWell = Well(
+            0,
+            wellTypes.filterValues { it == wellType }.keys.first(),
+            wellName,
+            gasOilDepth.toInt(),
+            capacity.toInt(),
+            layers,
+            wellType
+        )
+        try {
+            CoroutineScope(Dispatchers.IO).launch {
+                httpcreatewell().postFunction(newWell, {
+                    navController.navigate("well")
+                }, {
+                    errorMessage = "Failed to create well."
+                })
+            }
 
-        navController.navigate("home")
+        } catch (e: Exception) {
+            errorMessage = "Failed to create well."
+            return
+        }
+
     }
 
     Scaffold {
@@ -232,7 +254,7 @@ fun RegisterNewWellScreen(navController: NavController) {
             )
             {
                 DropDownMenu(
-                    items = rockTypes.values.select { it.rockName },
+                    items = rockTypes.values.map { it.name },
                     name = "Layer Name",
                     selectedItem = layerName,
                     onItemSelected = { layerName = it },
@@ -302,20 +324,6 @@ fun RegisterNewWellScreen(navController: NavController) {
             Button(
                 onClick = {
                     validateAndSubmit()
-                    if (errorMessage == null) {
-                        val newWell = Well(
-                            0,
-                            wellTypes.filterValues { it == wellType }.keys.first(),
-                            wellName,
-                            gasOilDepth.toInt(),
-                            capacity.toInt(),
-                            layers,
-                            wellType
-                        )
-
-
-
-                    }
 
                           },
                 modifier = Modifier.align(Alignment.End)
