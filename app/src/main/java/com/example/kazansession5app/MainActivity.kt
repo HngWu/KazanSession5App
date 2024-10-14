@@ -1,5 +1,6 @@
 package com.example.kazansession5app
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.kazansession5app.ui.theme.KazanSession5AppTheme
 
 class MainActivity : ComponentActivity() {
@@ -18,17 +24,55 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            KazanSession5AppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
+
+            val navController = rememberNavController()
+
+            NavHost(navController = navController, startDestination = "home") {
+                composable("home") {
+                    HomeScreen(navController = navController)
+                }
+                composable("well/{wellId}") { backStackEntry ->
+                    WellsScreen(
+                        navController = navController,
+                        wellId = backStackEntry.arguments?.getString("wellId")?.toInt() ?: 0
                     )
                 }
             }
+
+
+
         }
     }
+
 }
+
+
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@Composable
+private fun HomeScreen(navController: NavController) {
+    Scaffold {
+        Text(
+            text = "Home",
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        )
+    }
+}
+
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@Composable
+private fun WellsScreen(navController: NavController, wellId: Int) {
+    Scaffold {
+        Text(
+            text = "Well $wellId",
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        )
+    }
+}
+
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
