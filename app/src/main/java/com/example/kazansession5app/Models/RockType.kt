@@ -4,7 +4,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class RockType(
-    val id: Int,
     val name: String,
     val backgroundColor: String,
 )

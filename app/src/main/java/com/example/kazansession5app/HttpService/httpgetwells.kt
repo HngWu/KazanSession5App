@@ -10,7 +10,7 @@ import java.net.URL
 
 class httpgetwells {
     fun getFunction(): MutableList<Well>? {
-        val url = URL("http://10.0.2.2:5000/api/route")
+        val url = URL("http://10.0.2.2:5181/Well")
 
         try {
             val con = url.openConnection() as HttpURLConnection
@@ -30,18 +30,18 @@ class httpgetwells {
                 for (i in 0 until jsonArray.length()) {
                     val taskObject = jsonArray.getJSONObject(i)
                     val wellLayerList = mutableListOf<WellLayer>()
-                    val wellLayerListObject = taskObject.getJSONObject("wellType")
+                    val wellLayerListObject = taskObject.getJSONArray("wellLayers")
 
                     for (j in 0 until wellLayerListObject.length()) {
-                        val wellLayerObject = wellLayerListObject.getJSONObject(j.toString())
+                        val wellLayerObject = wellLayerListObject.getJSONObject(j)
                         val wellLayer = WellLayer(
                             wellLayerObject.getInt("id"),
                             wellLayerObject.getInt("wellId"),
                             wellLayerObject.getInt("rockTypeId"),
                             wellLayerObject.getInt("startPoint"),
                             wellLayerObject.getInt("endPoint"),
-                            wellLayerObject.getString("rockType") ,
-                            wellLayerObject.getString("rockType")
+                            wellLayerObject.getString("rockName") ,
+                            wellLayerObject.getString("rockColor")
 
                         )
                         wellLayerList.add(wellLayer)
@@ -64,6 +64,7 @@ class httpgetwells {
             }
             con.disconnect()
         } catch (e: Exception) {
+            e.printStackTrace()
             return null
         }
         return null
