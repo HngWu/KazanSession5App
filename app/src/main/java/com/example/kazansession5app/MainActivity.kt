@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,40 +89,54 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import kotlinx.serialization.json.JsonNull.content
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+
+
+        val colorScheme = lightColorScheme(
+            primary = Color(0xFF005CB9),
+            onPrimary = Color.White,
+            // Add other color customizations if needed
+        )
+
         setContent {
+            MaterialTheme(
+                colorScheme = colorScheme,
+                typography = androidx.compose.material3.Typography(),
+                content = {
+                    val navController = rememberNavController()
 
-            val navController = rememberNavController()
+                    NavHost(navController = navController, startDestination = "well") {
+                        composable("well") {
+                            WellsScreen(
+                                navController = navController,
+                                context = this@MainActivity
+                            )
+                        }
+                        composable("addWell") {
+                            RegisterNewWellScreen(
+                                navController = navController,
+                            )
+                        }
+                        composable(
+                            "editWell/{wellId}",
+                            arguments = listOf(navArgument("wellId") { type = NavType.IntType })
 
-            NavHost(navController = navController, startDestination = "well") {
-                composable("well") {
-                    WellsScreen(
-                        navController = navController,
-                        context = this@MainActivity
-                    )
+                        ) { backStackEntry ->
+                            val wellId = backStackEntry.arguments?.getInt("wellId") ?: return@composable
+                            EditNewWellScreen(
+                                navController = navController,
+                                wellId
+                            )
+                        }
+                    }
                 }
-                composable("addWell") {
-                    RegisterNewWellScreen(
-                        navController = navController,
-                    )
-                }
-                composable(
-                    "editWell/{wellId}",
-                    arguments = listOf(navArgument("wellId") { type = NavType.IntType })
-
-                ) { backStackEntry ->
-                    val wellId = backStackEntry.arguments?.getInt("wellId") ?: return@composable
-                    EditNewWellScreen(
-                        navController = navController,
-                        wellId
-                    )
-                }
-            }
-
-
+            )
         }
     }
 
@@ -272,21 +287,21 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
                 .padding(16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Start,
             ) {
 
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Description of the image",
                     modifier = Modifier
-                        .width(50.dp)
-                        .height(50.dp),
-                    contentScale = ContentScale.Crop
+                        .width(60.dp)
+                        .height(60.dp),
+                    contentScale = ContentScale.Fit
                 )
 
 
-                Text("Edit Well", style = MaterialTheme.typography.labelLarge)
+                Text("Edit Well", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 80.dp).align(Alignment.CenterVertically))
             }
 
 
@@ -564,20 +579,20 @@ fun RegisterNewWellScreen(navController: NavController) {
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.Start,
             ) {
 
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Description of the image",
                     modifier = Modifier
-                        .width(50.dp)
-                        .height(50.dp),
-                    contentScale = ContentScale.Crop
+                        .width(60.dp)
+                        .height(60.dp),
+                    contentScale = ContentScale.Fit
                 )
 
 
-                Text("Register New Well", style = MaterialTheme.typography.labelLarge)
+                Text("Register New Well", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 40.dp).align(Alignment.CenterVertically))
             }
 
 
@@ -937,9 +952,9 @@ private fun WellsScreen(navController: NavController, context: Context) {
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Description of the image",
                     modifier = Modifier
-                        .width(50.dp)
-                        .height(50.dp),
-                    contentScale = ContentScale.Crop
+                        .width(60.dp)
+                        .height(60.dp),
+                    contentScale = ContentScale.Fit
                 )
 
                 DropDownMenu(
@@ -1013,6 +1028,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                 Text(
                                     text = layer.startPoint.toString(),
                                     color = textColor,
+                                    style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.align(Alignment.Start)
                                 )
 
@@ -1021,10 +1037,11 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                     Text(
                                         text = layer.endPoint.toString(),
                                         color = textColor,
+                                        style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier
                                             .align(Alignment.Start)
                                             .padding(
-                                                top = (((layer.endPoint - layer.startPoint) / 8) - 36).dp.coerceAtLeast(
+                                                top = (((layer.endPoint - layer.startPoint) / 8) - 33).dp.coerceAtLeast(
                                                     18.dp
                                                 )
                                             )
@@ -1068,14 +1085,18 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                             modifier = Modifier.align(Alignment.Center)
                                         )
                                     }
+                                    if (selectedWell!!.gasOilDepth - lastEndPoint > 0)
+                                    {
+                                        Text(
+                                            text = selectedWell!!.gasOilDepth.toString(),
+                                            color = Color.Black,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier
+                                                .align(Alignment.Top)
+                                                .padding(start = 8.dp)
+                                        )
+                                    }
 
-                                    Text(
-                                        text = selectedWell!!.gasOilDepth.toString(),
-                                        color = Color.Black,
-                                        modifier = Modifier
-                                            .align(Alignment.Top)
-                                            .padding(start = 8.dp)
-                                    )
 
                                 }
 
@@ -1109,6 +1130,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                         onClick = {
                             navController.navigate("addWell")
                         },
+                        containerColor = MaterialTheme.colorScheme.primary,
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Add Well")
                     }
