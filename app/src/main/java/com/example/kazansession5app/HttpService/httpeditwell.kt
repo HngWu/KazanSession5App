@@ -1,70 +1,50 @@
 package com.example.kazansession5app.HttpService
 
+import android.os.Handler
+import android.os.Looper
 import com.example.kazansession5app.Models.Well
 import com.example.kazansession5app.Models.WellLayer
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
 class httpeditwell {
-    fun getFunction(wellId: Int): Well? {
-        val url = URL("http://10.0.2.2:5181/Well/$wellId")
+    fun postFunction(well: Well, onSuccess: (Boolean) -> Unit, onFailure: (Throwable) -> Unit) {
+        val url = URL("http://10.0.2.2:5181/Well/edit")
 
         try {
             val con = url.openConnection() as HttpURLConnection
-            con.requestMethod = "GET"
+            con.requestMethod = "POST"
             con.setRequestProperty("Content-Type", "application/json; utf-8")
             con.setRequestProperty("Accept", "application/json")
+            con.doOutput = true
+
+            val json = Json.encodeToString(well)
+            val os = OutputStreamWriter(con.outputStream)
+
+            os.write(json)
+            os.flush()
+            os.close()
 
             val status = con.responseCode
             if (status == 200) {
-                val reader = BufferedReader(InputStreamReader(con.inputStream))
-                val jsonData = reader.use { it.readText() }
-                reader.close()
 
-                val jsonObject = JSONArray(jsonData)
-                val objectList = mutableListOf<Well>()
-
-                val taskObject = jsonObject.getJSONObject(0)
-                val wellLayerList = mutableListOf<WellLayer>()
-                val wellLayerListObject = taskObject.getJSONArray("wellLayers")
-
-                for (j in 0 until wellLayerListObject.length()) {
-                    val wellLayerObject = wellLayerListObject.getJSONObject(j)
-                    val wellLayer = WellLayer(
-                        wellLayerObject.getInt("id"),
-                        wellLayerObject.getInt("wellId"),
-                        wellLayerObject.getInt("rockTypeId"),
-                        wellLayerObject.getInt("startPoint"),
-                        wellLayerObject.getInt("endPoint"),
-                        wellLayerObject.getString("rockName") ,
-                        wellLayerObject.getString("rockColor")
-
-                    )
-                    wellLayerList.add(wellLayer)
+                Handler(Looper.getMainLooper()).post() {
+                    onSuccess(true)
                 }
-                val well = Well(
-                    taskObject.getInt("id"),
-                    taskObject.getInt("wellTypeId"),
-                    taskObject.getString("wellName") ?: "",
-                    taskObject.getInt("gasOilDepth"),
-                    taskObject.getInt("capacity"),
-                    wellLayerList,
-                    taskObject.getString("wellTypeName"),
-                )
-                objectList.add(well)
-
-
-                return well
+            } else {
+                Handler(Looper.getMainLooper()).post{
+                    onFailure(Throwable("Post asset failed"))
+                }
             }
-            con.disconnect()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
+        }catch (e: Exception) {
+            onFailure(e)
         }
-        return null
     }
 
 }

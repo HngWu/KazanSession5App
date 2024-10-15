@@ -13,7 +13,7 @@ class httpgetwells {
         val url = URL("http://10.0.2.2:5181/Well")
 
         try {
-            val con = url.openConnection() as HttpURLConnection
+            val con = url.openConnection() as HttpURLConnection ?: return null
             con.requestMethod = "GET"
             con.setRequestProperty("Content-Type", "application/json; utf-8")
             con.setRequestProperty("Accept", "application/json")

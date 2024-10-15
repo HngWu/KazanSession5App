@@ -1,6 +1,9 @@
 package com.example.kazansession5app
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -57,10 +60,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.kazansession5app.HttpService.httpcreatewell
+import com.example.kazansession5app.HttpService.httpeditwell
 import com.example.kazansession5app.HttpService.httpgetwellforedit
 import com.example.kazansession5app.HttpService.httpgetwells
 import com.example.kazansession5app.Models.RockType
@@ -69,8 +75,12 @@ import com.example.kazansession5app.Models.WellLayer
 import com.example.kazansession5app.ui.theme.KazanSession5AppTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,10 +90,11 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
-            NavHost(navController = navController, startDestination = "editWell") {
+            NavHost(navController = navController, startDestination = "well") {
                 composable("well") {
                     WellsScreen(
                         navController = navController,
+                        context = this@MainActivity
                     )
                 }
                 composable("addWell") {
@@ -91,9 +102,15 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                     )
                 }
-                composable("editWell") {
+                composable(
+                    "editWell/{wellId}",
+                    arguments = listOf(navArgument("wellId") { type = NavType.IntType })
+
+                ) {backStackEntry ->
+                    val wellId = backStackEntry.arguments?.getInt("wellId") ?: return@composable
                     EditNewWellScreen(
                         navController = navController,
+                        wellId
                     )
                 }
             }
@@ -107,12 +124,12 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun EditNewWellScreen(navController: NavController) {
+fun EditNewWellScreen(navController: NavController, wellId:Int) {
     var wellName by remember { mutableStateOf("") }
     var wellType by remember { mutableStateOf("") }
     var gasOilDepth by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
-    var layers by remember { mutableStateOf(mutableListOf<WellLayer>()) }
+    var layers by remember {mutableStateOf<List<WellLayer>>(emptyList())  }
     var layerName by remember { mutableStateOf("") }
     var fromDepth by remember { mutableStateOf("") }
     var toDepth by remember { mutableStateOf("") }
@@ -144,15 +161,15 @@ fun EditNewWellScreen(navController: NavController) {
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            val wellId = 1
+
             val fetchedWell = httpgetwellforedit().getFunction(wellId)
             if (fetchedWell != null) {
                 EditedWell = fetchedWell
                 wellName = fetchedWell.wellName
-                wellType = fetchedWell.wellTypeName
+                wellType = wellTypes[fetchedWell.wellTypeId] ?: ""
                 gasOilDepth = fetchedWell.gasOilDepth.toString()
                 capacity = fetchedWell.capacity.toString()
-                layers = fetchedWell.wellLayers.toMutableList()
+                layers = fetchedWell.wellLayers.toList()
             }
         }
     }
@@ -189,7 +206,9 @@ fun EditNewWellScreen(navController: NavController) {
             return
         }
 
-        layers.add(WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
+
+
+        layers = layers + (WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
         fromDepth = ""
         toDepth = ""
         layerName = ""
@@ -208,7 +227,7 @@ fun EditNewWellScreen(navController: NavController) {
         }
 
         val newWell = Well(
-            0,
+            wellId,
             wellTypes.filterValues { it == wellType }.keys.first(),
             wellName,
             gasOilDepth.toInt(),
@@ -218,7 +237,7 @@ fun EditNewWellScreen(navController: NavController) {
         )
         try {
             CoroutineScope(Dispatchers.IO).launch {
-                httpcreatewell().postFunction(newWell, {
+                httpeditwell().postFunction(newWell, {
                     navController.navigate("well")
                 }, {
                     errorMessage = "Failed to create well."
@@ -321,20 +340,19 @@ fun EditNewWellScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            layers.forEachIndexed { index, layer ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
-                    Button(onClick = { layers.removeAt(index) }) {
+            LazyColumn {
+                items(layers) { layer ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
                         IconButton(
-                            onClick = { layers.removeAt(index) },
+                            onClick = {  layers = layers.filterNot { it.rockName == layer.rockName }  },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete Layer")
                         }
-
                     }
                 }
             }
@@ -351,7 +369,6 @@ fun EditNewWellScreen(navController: NavController) {
             Button(
                 onClick = {
                     validateAndSubmit()
-
                 },
                 modifier = Modifier.align(Alignment.End)
             ) {
@@ -360,7 +377,6 @@ fun EditNewWellScreen(navController: NavController) {
         }
     }
 }
-
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -598,24 +614,50 @@ fun RegisterNewWellScreen(navController: NavController) {
     }
 }
 
+fun isNetworkAvailable(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val activeNetwork = connectivityManager.activeNetwork ?: return false
+    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+    return networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-private fun WellsScreen(navController: NavController) {
+private fun WellsScreen(navController: NavController, context: Context) {
     var wellList by remember { mutableStateOf<List<Well>>(emptyList()) }
     var selectedWell by remember { mutableStateOf<Well?>(null) }
     var httpgetwells = remember { httpgetwells() }
+    var lastEndPoint by remember { mutableStateOf(-1) }
+    var isOnline by remember { mutableStateOf(false) }
+    var lastUpdateDate by remember { mutableStateOf("N/A") }
+    var showOfflineMessage by remember { mutableStateOf(false) }
+    var showOnlineMessage by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            val fetchedWells = httpgetwells.getFunction()
-            if (fetchedWells != null) {
-                wellList = fetchedWells
-                if (fetchedWells.isNotEmpty()) {
-                    selectedWell = fetchedWells[0]
+        while (true) {
+            val currentStatus = isNetworkAvailable(context)
+            if (currentStatus != isOnline) {
+                isOnline = currentStatus
+                if (isOnline) {
+                    showOnlineMessage = true
+                    // Fetch latest data from server
+                    withContext(Dispatchers.IO) {
+                        val fetchedWells = httpgetwells.getFunction()
+                        if (fetchedWells != null) {
+                            wellList = fetchedWells
+                            if (fetchedWells.isNotEmpty()) {
+                                selectedWell = fetchedWells[0]
+                            }
+                            lastUpdateDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                        }
+                    }
+                } else {
+                    showOfflineMessage = true
                 }
             }
+            showOfflineMessage = true
+            delay(5000)
         }
     }
 
@@ -625,11 +667,21 @@ private fun WellsScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            if (showOfflineMessage) {
+                Text("You are currently offline.", color = Color.Red, style = MaterialTheme.typography.bodyMedium)
+                showOfflineMessage = false
+            }
+            if (showOnlineMessage) {
+                Text("Connection restored. Application reloaded.", color = Color.Green, style = MaterialTheme.typography.bodyMedium)
+                showOnlineMessage = false
+            }
 
-            Row (
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-            ){
+            ) {
                 DropDownMenu(
                     items = wellList.map { it.wellName },
                     name = "Select Well",
@@ -639,17 +691,17 @@ private fun WellsScreen(navController: NavController) {
                         selectedWell = wellList.find { it.wellName == wellName }
                     }
                 )
-                Button(
-                    onClick = { navController.navigate("home") },
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                ) {
-
-                    Text("Edit")
+                if (isOnline) {
+                    Button(
+                        onClick = {
+                            navController.navigate("editWell/${selectedWell?.id}")
+                        },
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Text("Edit")
                     }
+                }
             }
-
-
-
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -657,6 +709,7 @@ private fun WellsScreen(navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f)
                         .padding(vertical = 8.dp)
                 ) {
                     item {
@@ -664,13 +717,12 @@ private fun WellsScreen(navController: NavController) {
                     }
                     itemsIndexed(well.wellLayers) { index, layer ->
                         val isLastLayer = index == well.wellLayers.size - 1
-                        val backgroundColor =Color(android.graphics.Color.parseColor(layer.backgroundColor))
+                        val backgroundColor = Color(android.graphics.Color.parseColor(layer.backgroundColor))
                         val textColor = Color.Black
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { /* Navigate to layer details screen */ }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -688,64 +740,66 @@ private fun WellsScreen(navController: NavController) {
                                 horizontalAlignment = Alignment.End,
                                 modifier = Modifier
                                     .padding(start = 8.dp)
-                                    .fillMaxHeight(), // Ensure the column fills the height of the row
+                                    .fillMaxHeight(),
                             ) {
-//
-
                                 Text(
                                     text = layer.startPoint.toString(),
                                     color = textColor,
                                     modifier = Modifier.align(Alignment.Start)
                                 )
 
-                                if (index == well.wellLayers.size - 1) {
+                                if (isLastLayer) {
+                                    lastEndPoint = layer.endPoint
                                     Text(
                                         text = layer.endPoint.toString(),
                                         color = textColor,
-                                        modifier = Modifier.align(Alignment.Start).padding(top = (((layer.endPoint - layer.startPoint) / 8)-36).dp.coerceAtLeast(18.dp)
-                                        )
+                                        modifier = Modifier.align(Alignment.Start).padding(top = (((layer.endPoint - layer.startPoint) / 8) - 36).dp.coerceAtLeast(18.dp))
                                     )
                                 }
-
                             }
                         }
                     }
                     item {
-                        Box(
-                            modifier = Modifier
-                                .height(55.dp)
-                                .background(Color.Black)
-                                .width(320.dp)
-                        ) {
-                            Text(
-                                text = "Oil/Gas",
-                                color = Color.White,
-                                modifier = Modifier.align(Alignment.Center)
-                            )
-                        }
-                    }
-                    item {
-                        Row (
-                            modifier = Modifier.fillMaxWidth().padding(18.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-
-                        ){
-                            Text(
-                                text = "Capacity: ${well.capacity} m3",
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            FloatingActionButton(
-                                onClick = {
-                                    navController.navigate("addWell")
-                                },
-                                modifier = Modifier.align(Alignment.Bottom),
+                        if (lastEndPoint != -1) {
+                            Box(
+                                modifier = Modifier
+                                    .height(((selectedWell!!.gasOilDepth - lastEndPoint) / 8).dp.coerceAtLeast(25.dp))
+                                    .background(Color.Black)
+                                    .width(320.dp)
                             ) {
-                                Icon(Icons.Filled.Add, contentDescription = "Add Layer")
+                                Text(
+                                    text = "Oil/Gas",
+                                    color = Color.White,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
                             }
                         }
                     }
+                    item {
+                        Text(
+                            text = "Capacity: ${well.capacity} m3",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
 
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Last update: $lastUpdateDate", style = MaterialTheme.typography.bodyMedium)
+                if (isOnline) {
+                    FloatingActionButton(
+                        onClick = {
+                            navController.navigate("addWell")
+                        },
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add Well")
+                    }
                 }
             }
         }
