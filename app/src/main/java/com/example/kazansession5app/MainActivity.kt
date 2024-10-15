@@ -61,6 +61,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.kazansession5app.HttpService.httpcreatewell
+import com.example.kazansession5app.HttpService.httpgetwellforedit
 import com.example.kazansession5app.HttpService.httpgetwells
 import com.example.kazansession5app.Models.RockType
 import com.example.kazansession5app.Models.Well
@@ -79,7 +80,7 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
-            NavHost(navController = navController, startDestination = "well") {
+            NavHost(navController = navController, startDestination = "editWell") {
                 composable("well") {
                     WellsScreen(
                         navController = navController,
@@ -87,6 +88,11 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("addWell") {
                     RegisterNewWellScreen(
+                        navController = navController,
+                    )
+                }
+                composable("editWell") {
+                    EditNewWellScreen(
                         navController = navController,
                     )
                 }
@@ -98,6 +104,263 @@ class MainActivity : ComponentActivity() {
     }
 
 }
+
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@Composable
+fun EditNewWellScreen(navController: NavController) {
+    var wellName by remember { mutableStateOf("") }
+    var wellType by remember { mutableStateOf("") }
+    var gasOilDepth by remember { mutableStateOf("") }
+    var capacity by remember { mutableStateOf("") }
+    var layers by remember { mutableStateOf(mutableListOf<WellLayer>()) }
+    var layerName by remember { mutableStateOf("") }
+    var fromDepth by remember { mutableStateOf("") }
+    var toDepth by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val rockTypes = mapOf(
+        1 to RockType("Argillite", "#E52B50"),
+        2 to RockType("Breccia", "#FFBF00"),
+        3 to RockType("Chalk", "#9966CC"),
+        4 to RockType("Chert", "#FBCEB1"),
+        5 to RockType("Coal", "#7FFFD4"),
+        6 to RockType("Conglomerate", "#007FFF"),
+        7 to RockType("Dolomite", "#0095B6"),
+        8 to RockType("Limestone", "#800020"),
+        9 to RockType("Marl", "#DE3163"),
+        10 to RockType("Mudstone", "#F7E7CE"),
+        11 to RockType("Sandstone", "#7FFF00"),
+        12 to RockType("Shale", "#C8A2C8"),
+        13 to RockType("Tufa", "#BFFF00"),
+        14 to RockType("Wackestone", "#FFFF00")
+    )
+    val wellTypes = mapOf(
+        1 to "Well",
+        2 to "Section"
+    )
+
+    var EditedWell by remember { mutableStateOf<Well?>(null) }
+
+
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val wellId = 1
+            val fetchedWell = httpgetwellforedit().getFunction(wellId)
+            if (fetchedWell != null) {
+                EditedWell = fetchedWell
+                wellName = fetchedWell.wellName
+                wellType = fetchedWell.wellTypeName
+                gasOilDepth = fetchedWell.gasOilDepth.toString()
+                capacity = fetchedWell.capacity.toString()
+                layers = fetchedWell.wellLayers.toMutableList()
+            }
+        }
+    }
+
+
+
+    fun validateAndAddLayer() {
+        val from = fromDepth.toIntOrNull()
+        val to = toDepth.toIntOrNull()
+        val depth = gasOilDepth.toIntOrNull()
+
+        if (from == null || to == null || from >= to || to - from < 100) {
+            errorMessage = "Invalid layer depths. Ensure 'From' is less than 'To' and the depth is at least 100."
+            return
+        }
+
+        if (depth != null && to > depth) {
+            errorMessage = "Layer depth cannot exceed the depth of gas or oil extraction."
+            return
+        }
+
+        if (layers.any { it.rockName == layerName }) {
+            errorMessage = "Layer names must be unique within the same well."
+            return
+        }
+
+        if (layers.any { (from in it.startPoint until it.endPoint) || (to in it.startPoint until it.endPoint) }) {
+            errorMessage = "Layers cannot overlap."
+            return
+        }
+
+        if (layers.isEmpty() && from != 0) {
+            errorMessage = "The first layer must start at depth 0."
+            return
+        }
+
+        layers.add(WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
+        fromDepth = ""
+        toDepth = ""
+        layerName = ""
+        errorMessage = null
+    }
+
+    fun validateAndSubmit() {
+        if (wellName.isBlank() || wellType.isBlank() || gasOilDepth.isBlank() || capacity.isBlank()) {
+            errorMessage = "All required fields must be filled."
+            return
+        }
+
+        if (layers.isEmpty() || layers.none { it.startPoint == 0 }) {
+            errorMessage = "There must be at least one layer starting at depth 0."
+            return
+        }
+
+        val newWell = Well(
+            0,
+            wellTypes.filterValues { it == wellType }.keys.first(),
+            wellName,
+            gasOilDepth.toInt(),
+            capacity.toInt(),
+            layers,
+            wellType
+        )
+        try {
+            CoroutineScope(Dispatchers.IO).launch {
+                httpcreatewell().postFunction(newWell, {
+                    navController.navigate("well")
+                }, {
+                    errorMessage = "Failed to create well."
+                })
+            }
+
+        } catch (e: Exception) {
+            errorMessage = "Failed to create well."
+            return
+        }
+
+    }
+
+    Scaffold {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            TextField(
+                value = wellName,
+                onValueChange = { wellName = it },
+                label = { Text("Well Name") },
+                modifier = Modifier.width(250.dp).padding(bottom = 8.dp)
+            )
+
+            Row (
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ){
+                TextField(
+                    value = gasOilDepth,
+                    onValueChange = { gasOilDepth = it },
+                    label = { Text("Depth of Gas/Oil Extraction") },
+                    readOnly = layers.isNotEmpty(),
+                    modifier = Modifier.width(200.dp).padding(end = 8.dp)
+                )
+                TextField(
+                    value = capacity,
+                    onValueChange = { capacity = it },
+                    label = { Text("Well Capacity") },
+                    modifier = Modifier.width(200.dp)
+                )
+            }
+
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Rock Layers", style = MaterialTheme.typography.bodyLarge)
+            HorizontalDivider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            )
+            {
+                DropDownMenu(
+                    items = rockTypes.values.map { it.name },
+                    name = "Layer Name",
+                    selectedItem = layerName,
+                    onItemSelected = { layerName = it },
+                    width = 200
+                )
+                DropDownMenu(
+                    items = wellTypes.values.toList(),
+                    name = "Well Type",
+                    selectedItem = wellType,
+                    onItemSelected = { wellType = it },
+                    width = 200
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextField(
+                    value = fromDepth,
+                    onValueChange = { fromDepth = it },
+                    label = { Text("From Depth") },
+                    modifier = Modifier.width(120.dp)
+                )
+                TextField(
+                    value = toDepth,
+                    onValueChange = { toDepth = it },
+                    label = { Text("To Depth") },
+                    modifier = Modifier.width(120.dp)
+                )
+                Button(
+                    onClick = { validateAndAddLayer() },
+                    modifier = Modifier.align(Alignment.CenterVertically)
+                ) {
+                    Text("Add Layer")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            layers.forEachIndexed { index, layer ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
+                    Button(onClick = { layers.removeAt(index) }) {
+                        IconButton(
+                            onClick = { layers.removeAt(index) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete Layer")
+                        }
+
+                    }
+                }
+            }
+
+
+
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            errorMessage?.let {
+                Text(it, color = Color.Red)
+            }
+
+            Button(
+                onClick = {
+                    validateAndSubmit()
+
+                },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Submit")
+            }
+        }
+    }
+}
+
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -216,7 +479,7 @@ fun RegisterNewWellScreen(navController: NavController) {
                 value = wellName,
                 onValueChange = { wellName = it },
                 label = { Text("Well Name") },
-                modifier = Modifier.width(250.dp)
+                modifier = Modifier.width(250.dp).padding(bottom = 8.dp)
             )
 
             Row (
@@ -227,6 +490,7 @@ fun RegisterNewWellScreen(navController: NavController) {
                     value = gasOilDepth,
                     onValueChange = { gasOilDepth = it },
                     label = { Text("Depth of Gas/Oil Extraction") },
+                    readOnly = layers.isNotEmpty(),
                     modifier = Modifier.width(200.dp).padding(end = 8.dp)
                 )
                 TextField(
@@ -262,7 +526,7 @@ fun RegisterNewWellScreen(navController: NavController) {
                 )
                 DropDownMenu(
                     items = wellTypes.values.toList(),
-                    name = "Layer Name",
+                    name = "Well Type",
                     selectedItem = wellType,
                     onItemSelected = { wellType = it },
                     width = 200
