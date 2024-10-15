@@ -12,3 +12,4 @@ data class Well(
     val wellLayers: List<WellLayer> = listOf(),
     val wellTypeName: String,
 )
+

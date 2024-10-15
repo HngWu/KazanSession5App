@@ -5,9 +5,11 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,6 +57,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.coerceAtLeast
@@ -78,10 +82,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,7 +112,7 @@ class MainActivity : ComponentActivity() {
                     "editWell/{wellId}",
                     arguments = listOf(navArgument("wellId") { type = NavType.IntType })
 
-                ) {backStackEntry ->
+                ) { backStackEntry ->
                     val wellId = backStackEntry.arguments?.getInt("wellId") ?: return@composable
                     EditNewWellScreen(
                         navController = navController,
@@ -116,7 +122,6 @@ class MainActivity : ComponentActivity() {
             }
 
 
-
         }
     }
 
@@ -124,12 +129,12 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun EditNewWellScreen(navController: NavController, wellId:Int) {
+fun EditNewWellScreen(navController: NavController, wellId: Int) {
     var wellName by remember { mutableStateOf("") }
     var wellType by remember { mutableStateOf("") }
     var gasOilDepth by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
-    var layers by remember {mutableStateOf<List<WellLayer>>(emptyList())  }
+    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList()) }
     var layerName by remember { mutableStateOf("") }
     var fromDepth by remember { mutableStateOf("") }
     var toDepth by remember { mutableStateOf("") }
@@ -182,7 +187,8 @@ fun EditNewWellScreen(navController: NavController, wellId:Int) {
         val depth = gasOilDepth.toIntOrNull()
 
         if (from == null || to == null || from >= to || to - from < 100) {
-            errorMessage = "Invalid layer depths. Ensure 'From' is less than 'To' and the depth is at least 100."
+            errorMessage =
+                "Invalid layer depths. Ensure 'From' is less than 'To' and the depth is at least 100."
             return
         }
 
@@ -208,7 +214,15 @@ fun EditNewWellScreen(navController: NavController, wellId:Int) {
 
 
 
-        layers = layers + (WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
+        layers = layers + (WellLayer(
+            0,
+            0,
+            rockTypes.filterValues { it.name == layerName }.keys.first(),
+            from,
+            to,
+            layerName,
+            rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor
+        ))
         fromDepth = ""
         toDepth = ""
         layerName = ""
@@ -257,23 +271,53 @@ fun EditNewWellScreen(navController: NavController, wellId:Int) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "Description of the image",
+                    modifier = Modifier
+                        .width(50.dp)
+                        .height(50.dp),
+                    contentScale = ContentScale.Crop
+                )
+
+
+                Text("Edit Well", style = MaterialTheme.typography.labelLarge)
+            }
+
+
             TextField(
                 value = wellName,
                 onValueChange = { wellName = it },
                 label = { Text("Well Name") },
-                modifier = Modifier.width(250.dp).padding(bottom = 8.dp)
+                modifier = Modifier
+                    .width(250.dp)
+                    .padding(bottom = 8.dp)
             )
 
-            Row (
+            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-            ){
+            ) {
                 TextField(
                     value = gasOilDepth,
-                    onValueChange = { gasOilDepth = it },
+                    onValueChange = { newDepth ->
+                        val newDepthInt = newDepth.toIntOrNull()
+                        if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
+                            errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
+                        } else {
+                            gasOilDepth = newDepth
+                            errorMessage = null
+                        }
+                    },
                     label = { Text("Depth of Gas/Oil Extraction") },
-                    readOnly = layers.isNotEmpty(),
-                    modifier = Modifier.width(200.dp).padding(end = 8.dp)
+                    modifier = Modifier
+                        .width(200.dp)
+                        .padding(end = 8.dp)
                 )
                 TextField(
                     value = capacity,
@@ -348,7 +392,9 @@ fun EditNewWellScreen(navController: NavController, wellId:Int) {
                     ) {
                         Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
                         IconButton(
-                            onClick = {  layers = layers.filterNot { it.rockName == layer.rockName }  },
+                            onClick = {
+                                layers = layers.filterNot { it.rockName == layer.rockName }
+                            },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete Layer")
@@ -365,15 +411,29 @@ fun EditNewWellScreen(navController: NavController, wellId:Int) {
             errorMessage?.let {
                 Text(it, color = Color.Red)
             }
-
-            Button(
-                onClick = {
-                    validateAndSubmit()
-                },
-                modifier = Modifier.align(Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Submit")
+                Button(
+                    onClick = {
+                        navController.navigate("well")
+                    }
+                ) {
+                    Text("Cancel")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = {
+                        validateAndSubmit()
+                    },
+                    modifier = Modifier.align(Alignment.Bottom)
+                ) {
+                    Text("Submit")
+                }
             }
+
+
         }
     }
 }
@@ -385,7 +445,7 @@ fun RegisterNewWellScreen(navController: NavController) {
     var wellType by remember { mutableStateOf("") }
     var gasOilDepth by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
-    var layers by remember { mutableStateOf(mutableListOf<WellLayer>()) }
+    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList()) }
     var layerName by remember { mutableStateOf("") }
     var fromDepth by remember { mutableStateOf("") }
     var toDepth by remember { mutableStateOf("") }
@@ -418,7 +478,8 @@ fun RegisterNewWellScreen(navController: NavController) {
         val depth = gasOilDepth.toIntOrNull()
 
         if (from == null || to == null || from >= to || to - from < 100) {
-            errorMessage = "Invalid layer depths. Ensure 'From' is less than 'To' and the depth is at least 100."
+            errorMessage =
+                "Invalid layer depths. Ensure 'From' is less than 'To' and the depth is at least 100."
             return
         }
 
@@ -442,7 +503,17 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
-        layers.add(WellLayer(0, 0, rockTypes.filterValues { it.name == layerName }.keys.first(), from, to, layerName, rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor))
+        layers = layers +
+            WellLayer(
+                0,
+                0,
+                rockTypes.filterValues { it.name == layerName }.keys.first(),
+                from,
+                to,
+                layerName,
+                rockTypes.filterValues { it.name == layerName }.values.first().backgroundColor
+            )
+
         fromDepth = ""
         toDepth = ""
         layerName = ""
@@ -491,23 +562,53 @@ fun RegisterNewWellScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "Description of the image",
+                    modifier = Modifier
+                        .width(50.dp)
+                        .height(50.dp),
+                    contentScale = ContentScale.Crop
+                )
+
+
+                Text("Register New Well", style = MaterialTheme.typography.labelLarge)
+            }
+
+
             TextField(
                 value = wellName,
                 onValueChange = { wellName = it },
                 label = { Text("Well Name") },
-                modifier = Modifier.width(250.dp).padding(bottom = 8.dp)
+                modifier = Modifier
+                    .width(250.dp)
+                    .padding(bottom = 8.dp)
             )
 
-            Row (
+            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-            ){
+            ) {
                 TextField(
                     value = gasOilDepth,
-                    onValueChange = { gasOilDepth = it },
+                    onValueChange = { newDepth ->
+                        val newDepthInt = newDepth.toIntOrNull()
+                        if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
+                            errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
+                        } else {
+                            gasOilDepth = newDepth
+                            errorMessage = null
+                        }
+                    },
                     label = { Text("Depth of Gas/Oil Extraction") },
-                    readOnly = layers.isNotEmpty(),
-                    modifier = Modifier.width(200.dp).padding(end = 8.dp)
+                    modifier = Modifier
+                        .width(200.dp)
+                        .padding(end = 8.dp)
                 )
                 TextField(
                     value = capacity,
@@ -574,20 +675,21 @@ fun RegisterNewWellScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            layers.forEachIndexed { index, layer ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
-                    Button(onClick = { layers.removeAt(index) }) {
+            LazyColumn {
+                items(layers) { layer ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("${layer.rockName}: ${layer.startPoint} - ${layer.endPoint}")
                         IconButton(
-                            onClick = { layers.removeAt(index) },
+                            onClick = {
+                                layers = layers.filterNot { it.rockName == layer.rockName }
+                            },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete Layer")
                         }
-
                     }
                 }
             }
@@ -601,28 +703,43 @@ fun RegisterNewWellScreen(navController: NavController) {
                 Text(it, color = Color.Red)
             }
 
-            Button(
-                onClick = {
-                    validateAndSubmit()
-
-                          },
-                modifier = Modifier.align(Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Submit")
+                Button(
+                    onClick = {
+                        navController.navigate("well")
+                    }
+                ) {
+                    Text("Cancel")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = {
+                        validateAndSubmit()
+                    },
+                    modifier = Modifier.align(Alignment.Bottom)
+                ) {
+                    Text("Submit")
+                }
             }
+
         }
     }
 }
 
 fun isNetworkAvailable(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val connectivityManager =
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val activeNetwork = connectivityManager.activeNetwork ?: return false
-    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+    val networkCapabilities =
+        connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
     return networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter", "CoroutineCreationDuringComposition")
 @Composable
 private fun WellsScreen(navController: NavController, context: Context) {
     var wellList by remember { mutableStateOf<List<Well>>(emptyList()) }
@@ -633,8 +750,13 @@ private fun WellsScreen(navController: NavController, context: Context) {
     var lastUpdateDate by remember { mutableStateOf("N/A") }
     var showOfflineMessage by remember { mutableStateOf(false) }
     var showOnlineMessage by remember { mutableStateOf(false) }
+    var showMessageOnlineOnce by remember { mutableStateOf(true) }
+    var showMessageOfflineOnce by remember { mutableStateOf(true) }
+
 
     LaunchedEffect(Unit) {
+        val sharedPreferences = context.getSharedPreferences("WellData", Context.MODE_PRIVATE)
+
         while (true) {
             val currentStatus = isNetworkAvailable(context)
             if (currentStatus != isOnline) {
@@ -647,20 +769,141 @@ private fun WellsScreen(navController: NavController, context: Context) {
                         if (fetchedWells != null) {
                             wellList = fetchedWells
                             if (fetchedWells.isNotEmpty()) {
-                                selectedWell = fetchedWells[0]
+                                if (selectedWell == null) {
+                                    selectedWell = fetchedWells[0]
+                                }
                             }
-                            lastUpdateDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                            lastUpdateDate =
+                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                            // Store fetched wells in SharedPreferences
+                            val editor = sharedPreferences.edit()
+                            val json = JSONArray(fetchedWells.map { well ->
+                                val jsonObject = JSONObject()
+                                jsonObject.put("id", well.id)
+                                jsonObject.put("wellTypeId", well.wellTypeId)
+                                jsonObject.put("wellName", well.wellName)
+                                jsonObject.put("gasOilDepth", well.gasOilDepth)
+                                jsonObject.put("capacity", well.capacity)
+                                jsonObject.put("wellTypeName", well.wellTypeName)
+                                val layersArray = JSONArray()
+                                for (layer in well.wellLayers) {
+                                    val layerObject = JSONObject()
+                                    layerObject.put("id", layer.id)
+                                    layerObject.put("wellId", layer.wellId)
+                                    layerObject.put("rockTypeId", layer.rockTypeId)
+                                    layerObject.put("startPoint", layer.startPoint)
+                                    layerObject.put("endPoint", layer.endPoint)
+                                    layerObject.put("rockName", layer.rockName)
+                                    layerObject.put("backgroundColor", layer.backgroundColor)
+                                    layersArray.put(layerObject)
+                                }
+                                jsonObject.put("wellLayers", layersArray)
+                                jsonObject
+                            }).toString()
+                            editor.putString("lastUpdate", lastUpdateDate)
+                            editor.apply()
+                            editor.putString("wells", json)
+                            editor.apply()
                         }
                     }
-                } else {
+                }
+                else {
                     showOfflineMessage = true
+                    // Get wells from SharedPreferences
+                    val json = sharedPreferences.getString("wells", null)
+                    lastUpdateDate = sharedPreferences.getString("lastUpdate", "N/A") ?: "N/A"
+                    if (json != null) {
+                        val jsonArray = JSONArray(json)
+                        val cachedWells = mutableListOf<Well>()
+                        for (i in 0 until jsonArray.length()) {
+                            val wellJson = jsonArray.getJSONObject(i)
+                            val layersArray = wellJson.getJSONArray("wellLayers")
+                            val layers = mutableListOf<WellLayer>()
+                            for (j in 0 until layersArray.length()) {
+                                val layerJson = layersArray.getJSONObject(j)
+                                layers.add(
+                                    WellLayer(
+                                        layerJson.getInt("id"),
+                                        layerJson.getInt("wellId"),
+                                        layerJson.getInt("rockTypeId"),
+                                        layerJson.getInt("startPoint"),
+                                        layerJson.getInt("endPoint"),
+                                        layerJson.getString("rockName"),
+                                        layerJson.getString("backgroundColor")
+                                    )
+                                )
+                            }
+                            cachedWells.add(
+                                Well(
+                                    wellJson.getInt("id"),
+                                    wellJson.getInt("wellTypeId"),
+                                    wellJson.getString("wellName"),
+                                    wellJson.getInt("gasOilDepth"),
+                                    wellJson.getInt("capacity"),
+                                    layers,
+                                    wellJson.getString("wellTypeName")
+                                )
+                            )
+                        }
+                        wellList = cachedWells
+                        if (cachedWells.isNotEmpty()) {
+                            if (selectedWell == null) {
+                                selectedWell = cachedWells[0]
+                            }
+                        }
+                    }
                 }
             }
-            showOfflineMessage = true
+            else{
+                showOfflineMessage = true
+                // Get wells from SharedPreferences
+                lastUpdateDate = sharedPreferences.getString("lastUpdate", "N/A") ?: "N/A"
+                val json = sharedPreferences.getString("wells", null)
+                if (json != null) {
+                    val jsonArray = JSONArray(json)
+                    val cachedWells = mutableListOf<Well>()
+                    for (i in 0 until jsonArray.length()) {
+                        val wellJson = jsonArray.getJSONObject(i)
+                        val layersArray = wellJson.getJSONArray("wellLayers")
+                        val layers = mutableListOf<WellLayer>()
+                        for (j in 0 until layersArray.length()) {
+                            val layerJson = layersArray.getJSONObject(j)
+                            layers.add(
+                                WellLayer(
+                                    layerJson.getInt("id"),
+                                    layerJson.getInt("wellId"),
+                                    layerJson.getInt("rockTypeId"),
+                                    layerJson.getInt("startPoint"),
+                                    layerJson.getInt("endPoint"),
+                                    layerJson.getString("rockName"),
+                                    layerJson.getString("backgroundColor")
+                                )
+                            )
+                        }
+                        cachedWells.add(
+                            Well(
+                                wellJson.getInt("id"),
+                                wellJson.getInt("wellTypeId"),
+                                wellJson.getString("wellName"),
+                                wellJson.getInt("gasOilDepth"),
+                                wellJson.getInt("capacity"),
+                                layers,
+                                wellJson.getString("wellTypeName")
+                            )
+                        )
+                    }
+                    wellList = cachedWells
+                    if (cachedWells.isNotEmpty()) {
+                        if (selectedWell == null) {
+                            selectedWell = cachedWells[0]
+                        }
+                    }
+                }
+            }
+
             delay(5000)
         }
     }
-
     Scaffold {
         Column(
             modifier = Modifier
@@ -668,12 +911,20 @@ private fun WellsScreen(navController: NavController, context: Context) {
                 .padding(16.dp)
         ) {
             if (showOfflineMessage) {
-                Text("You are currently offline.", color = Color.Red, style = MaterialTheme.typography.bodyMedium)
-                showOfflineMessage = false
+                //Text("You are currently offline.", color = Color.Red, style = MaterialTheme.typography.bodyMedium)
+                if (isOnline == false && showMessageOnlineOnce)
+                {
+                    Toast.makeText(context, "You are currently offline.", Toast.LENGTH_SHORT).show()
+                    showMessageOnlineOnce = false
+                }
             }
             if (showOnlineMessage) {
-                Text("Connection restored. Application reloaded.", color = Color.Green, style = MaterialTheme.typography.bodyMedium)
-                showOnlineMessage = false
+                if (isOnline == true && showMessageOfflineOnce)
+                {
+                    Toast.makeText(context, "You are currently online.", Toast.LENGTH_SHORT).show()
+                    showMessageOfflineOnce = false
+                }
+
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -682,6 +933,15 @@ private fun WellsScreen(navController: NavController, context: Context) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "Description of the image",
+                    modifier = Modifier
+                        .width(50.dp)
+                        .height(50.dp),
+                    contentScale = ContentScale.Crop
+                )
+
                 DropDownMenu(
                     items = wellList.map { it.wellName },
                     name = "Select Well",
@@ -713,11 +973,15 @@ private fun WellsScreen(navController: NavController, context: Context) {
                         .padding(vertical = 8.dp)
                 ) {
                     item {
-                        Text(text = "Well Name: ${well.wellName}", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            text = "Well Name: ${well.wellName}",
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                     itemsIndexed(well.wellLayers) { index, layer ->
                         val isLastLayer = index == well.wellLayers.size - 1
-                        val backgroundColor = Color(android.graphics.Color.parseColor(layer.backgroundColor))
+                        val backgroundColor =
+                            Color(android.graphics.Color.parseColor(layer.backgroundColor))
                         val textColor = Color.Black
 
                         Row(
@@ -726,7 +990,11 @@ private fun WellsScreen(navController: NavController, context: Context) {
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .height(((layer.endPoint - layer.startPoint) / 8).dp.coerceAtLeast(50.dp))
+                                    .height(
+                                        ((layer.endPoint - layer.startPoint) / 8).dp.coerceAtLeast(
+                                            50.dp
+                                        )
+                                    )
                                     .background(backgroundColor)
                                     .width(320.dp)
                             ) {
@@ -753,7 +1021,13 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                     Text(
                                         text = layer.endPoint.toString(),
                                         color = textColor,
-                                        modifier = Modifier.align(Alignment.Start).padding(top = (((layer.endPoint - layer.startPoint) / 8) - 36).dp.coerceAtLeast(18.dp))
+                                        modifier = Modifier
+                                            .align(Alignment.Start)
+                                            .padding(
+                                                top = (((layer.endPoint - layer.startPoint) / 8) - 36).dp.coerceAtLeast(
+                                                    18.dp
+                                                )
+                                            )
                                     )
                                 }
                             }
@@ -761,18 +1035,53 @@ private fun WellsScreen(navController: NavController, context: Context) {
                     }
                     item {
                         if (lastEndPoint != -1) {
-                            Box(
-                                modifier = Modifier
-                                    .height(((selectedWell!!.gasOilDepth - lastEndPoint) / 8).dp.coerceAtLeast(25.dp))
-                                    .background(Color.Black)
-                                    .width(320.dp)
-                            ) {
-                                Text(
-                                    text = "Oil/Gas",
-                                    color = Color.White,
-                                    modifier = Modifier.align(Alignment.Center)
-                                )
+
+                            Column {
+
+                                if (selectedWell!!.gasOilDepth - lastEndPoint > 0)
+                                {
+                                    Box(
+                                        modifier = Modifier
+                                            .height(
+                                                ((selectedWell!!.gasOilDepth - lastEndPoint) / 8).dp.coerceAtLeast(
+                                                    25.dp
+                                                )
+                                            )
+                                            .background(Color.White)
+                                            .width(320.dp)
+                                    ) {
+
+                                    }
+                                }
+
+
+                                Row {
+                                    Box(
+                                        modifier = Modifier
+                                            .height(50.dp)
+                                            .background(Color.Black)
+                                            .width(320.dp)
+                                    ) {
+                                        Text(
+                                            text = "Oil/Gas",
+                                            color = Color.White,
+                                            modifier = Modifier.align(Alignment.Center)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = selectedWell!!.gasOilDepth.toString(),
+                                        color = Color.Black,
+                                        modifier = Modifier
+                                            .align(Alignment.Top)
+                                            .padding(start = 8.dp)
+                                    )
+
+                                }
+
                             }
+
+
                         }
                     }
                     item {
@@ -785,9 +1094,12 @@ private fun WellsScreen(navController: NavController, context: Context) {
                     }
                 }
             }
+            Toast.LENGTH_SHORT
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -805,9 +1117,16 @@ private fun WellsScreen(navController: NavController, context: Context) {
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DropDownMenu(items: List<String>, name: String, selectedItem: String,width: Int, onItemSelected: (String) -> Unit) {
+fun DropDownMenu(
+    items: List<String>,
+    name: String,
+    selectedItem: String,
+    width: Int,
+    onItemSelected: (String) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
