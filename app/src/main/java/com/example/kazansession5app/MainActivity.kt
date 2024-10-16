@@ -177,7 +177,17 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
 
     var EditedWell by remember { mutableStateOf<Well?>(null) }
 
+    var wellList by remember { mutableStateOf<List<Well>>(emptyList()) }
 
+    LaunchedEffect(Unit){
+        withContext(Dispatchers.IO) {
+            val fetchedWells = httpgetwells().getFunction()
+            if (fetchedWells != null) {
+                wellList = fetchedWells
+            }
+        }
+
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -255,6 +265,12 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
             return
         }
 
+
+        if (wellName in wellList.map { it.wellName }) {
+            errorMessage = "Well name must be unique."
+            return
+        }
+
         val newWell = Well(
             wellId,
             wellTypes.filterValues { it == wellType }.keys.first(),
@@ -315,34 +331,42 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                TextField(
-                    value = gasOilDepth,
-                    onValueChange = { newDepth ->
-                        val newDepthInt = newDepth.toIntOrNull()
-                        if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
-                            errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
-                        } else {
-                            gasOilDepth = newDepth
-                            errorMessage = null
-                        }
-                    },
-                    label = { Text("Depth of Gas/Oil Extraction") },
-                    modifier = Modifier
-                        .width(200.dp)
-                        .padding(end = 8.dp)
-                )
+
                 TextField(
                     value = capacity,
                     onValueChange = { capacity = it },
                     label = { Text("Well Capacity") },
-                    modifier = Modifier.width(200.dp)
+                    modifier = Modifier.width(200.dp).padding(top = 6.dp)
                 )
+                DropDownMenu(
+                    items = wellTypes.values.toList(),
+                    name = "Well Type",
+                    selectedItem = wellType,
+                    onItemSelected = { wellType = it },
+                    width = 200,
+                )
+
+
             }
-
-
+            TextField(
+                value = gasOilDepth,
+                onValueChange = { newDepth ->
+                    val newDepthInt = newDepth.toIntOrNull()
+                    if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
+                        errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
+                    } else {
+                        gasOilDepth = newDepth
+                        errorMessage = null
+                    }
+                },
+                label = { Text("Depth of Gas/Oil Extraction") },
+                modifier = Modifier
+                    .width(300.dp)
+                    .padding(end = 8.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             Text("Rock Layers", style = MaterialTheme.typography.bodyLarge)
@@ -363,15 +387,9 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
                     name = "Layer Name",
                     selectedItem = layerName,
                     onItemSelected = { layerName = it },
-                    width = 200
+                    width = 300
                 )
-                DropDownMenu(
-                    items = wellTypes.values.toList(),
-                    name = "Well Type",
-                    selectedItem = wellType,
-                    onItemSelected = { wellType = it },
-                    width = 200
-                )
+
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -381,19 +399,19 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
                     value = fromDepth,
                     onValueChange = { fromDepth = it },
                     label = { Text("From Depth") },
-                    modifier = Modifier.width(120.dp)
+                    modifier = Modifier.width(140.dp).padding(start = 5.dp)
                 )
                 TextField(
                     value = toDepth,
                     onValueChange = { toDepth = it },
                     label = { Text("To Depth") },
-                    modifier = Modifier.width(120.dp)
+                    modifier = Modifier.width(140.dp)
                 )
                 Button(
                     onClick = { validateAndAddLayer() },
                     modifier = Modifier.align(Alignment.CenterVertically)
                 ) {
-                    Text("Add Layer")
+                    Text("Add")
                 }
             }
 
@@ -486,6 +504,18 @@ fun RegisterNewWellScreen(navController: NavController) {
         2 to "Section"
     )
 
+    var wellList by remember { mutableStateOf<List<Well>>(emptyList()) }
+
+    LaunchedEffect(Unit){
+        withContext(Dispatchers.IO) {
+            val fetchedWells = httpgetwells().getFunction()
+            if (fetchedWells != null) {
+                wellList = fetchedWells
+            }
+        }
+
+    }
+
 
     fun validateAndAddLayer() {
         val from = fromDepth.toIntOrNull()
@@ -518,6 +548,9 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
+
+
+
         layers = layers +
             WellLayer(
                 0,
@@ -543,6 +576,11 @@ fun RegisterNewWellScreen(navController: NavController) {
 
         if (layers.isEmpty() || layers.none { it.startPoint == 0 }) {
             errorMessage = "There must be at least one layer starting at depth 0."
+            return
+        }
+
+        if (wellName in wellList.map { it.wellName }) {
+            errorMessage = "Well name must be unique."
             return
         }
 
@@ -606,34 +644,42 @@ fun RegisterNewWellScreen(navController: NavController) {
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                TextField(
-                    value = gasOilDepth,
-                    onValueChange = { newDepth ->
-                        val newDepthInt = newDepth.toIntOrNull()
-                        if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
-                            errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
-                        } else {
-                            gasOilDepth = newDepth
-                            errorMessage = null
-                        }
-                    },
-                    label = { Text("Depth of Gas/Oil Extraction") },
-                    modifier = Modifier
-                        .width(200.dp)
-                        .padding(end = 8.dp)
-                )
+
                 TextField(
                     value = capacity,
                     onValueChange = { capacity = it },
                     label = { Text("Well Capacity") },
-                    modifier = Modifier.width(200.dp)
+                    modifier = Modifier.width(200.dp).padding(top = 6.dp)
                 )
+                DropDownMenu(
+                    items = wellTypes.values.toList(),
+                    name = "Well Type",
+                    selectedItem = wellType,
+                    onItemSelected = { wellType = it },
+                    width = 200,
+                )
+
+
             }
-
-
+            TextField(
+                value = gasOilDepth,
+                onValueChange = { newDepth ->
+                    val newDepthInt = newDepth.toIntOrNull()
+                    if (newDepthInt != null && layers.any { it.endPoint > newDepthInt }) {
+                        errorMessage = "Depth of gas or oil extraction cannot be lower than the depth of existing layers."
+                    } else {
+                        gasOilDepth = newDepth
+                        errorMessage = null
+                    }
+                },
+                label = { Text("Depth of Gas/Oil Extraction") },
+                modifier = Modifier
+                    .width(300.dp)
+                    .padding(end = 8.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             Text("Rock Layers", style = MaterialTheme.typography.bodyLarge)
@@ -654,15 +700,9 @@ fun RegisterNewWellScreen(navController: NavController) {
                     name = "Layer Name",
                     selectedItem = layerName,
                     onItemSelected = { layerName = it },
-                    width = 200
+                    width = 300
                 )
-                DropDownMenu(
-                    items = wellTypes.values.toList(),
-                    name = "Well Type",
-                    selectedItem = wellType,
-                    onItemSelected = { wellType = it },
-                    width = 200
-                )
+
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -672,19 +712,19 @@ fun RegisterNewWellScreen(navController: NavController) {
                     value = fromDepth,
                     onValueChange = { fromDepth = it },
                     label = { Text("From Depth") },
-                    modifier = Modifier.width(120.dp)
+                    modifier = Modifier.width(140.dp).padding(start = 5.dp)
                 )
                 TextField(
                     value = toDepth,
                     onValueChange = { toDepth = it },
                     label = { Text("To Depth") },
-                    modifier = Modifier.width(120.dp)
+                    modifier = Modifier.width(140.dp)
                 )
                 Button(
                     onClick = { validateAndAddLayer() },
                     modifier = Modifier.align(Alignment.CenterVertically)
                 ) {
-                    Text("Add Layer")
+                    Text("Add")
                 }
             }
 
@@ -767,7 +807,10 @@ private fun WellsScreen(navController: NavController, context: Context) {
     var showOnlineMessage by remember { mutableStateOf(false) }
     var showMessageOnlineOnce by remember { mutableStateOf(true) }
     var showMessageOfflineOnce by remember { mutableStateOf(true) }
-
+    var wellTypes = mapOf(
+        1 to "Well",
+        2 to "Section"
+    )
 
     LaunchedEffect(Unit) {
         val sharedPreferences = context.getSharedPreferences("WellData", Context.MODE_PRIVATE)
@@ -989,7 +1032,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                 ) {
                     item {
                         Text(
-                            text = "Well Name: ${well.wellName}",
+                            text = "Well Name: ${well.wellName} - Well Type: ${wellTypes[well.wellTypeId]}",
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
