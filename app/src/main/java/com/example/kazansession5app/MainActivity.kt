@@ -88,7 +88,6 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kotlinx.serialization.json.JsonNull.content
 
 class MainActivity : ComponentActivity() {
@@ -237,6 +236,11 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
             return
         }
 
+
+        if (from < 0 || to < 0) {
+            errorMessage = "Layer depths cannot be negative."
+            return
+        }
 
 
         layers = layers + (WellLayer(
@@ -548,6 +552,10 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
+        if (from < 0 || to < 0) {
+            errorMessage = "Layer depths cannot be negative."
+            return
+        }
 
 
 
@@ -1054,7 +1062,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                         )
                                     )
                                     .background(backgroundColor)
-                                    .width(320.dp)
+                                    .width(300.dp).border(1.dp, Color.Black)
                             ) {
                                 Text(
                                     text = layer.rockName,
@@ -1069,7 +1077,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                     .fillMaxHeight(),
                             ) {
                                 Text(
-                                    text = layer.startPoint.toString(),
+                                    text = layer.startPoint.toString() + " m",
                                     color = textColor,
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.align(Alignment.Start)
@@ -1078,7 +1086,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                 if (isLastLayer) {
                                     lastEndPoint = layer.endPoint
                                     Text(
-                                        text = layer.endPoint.toString(),
+                                        text = layer.endPoint.toString()+ " m",
                                         color = textColor,
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier
@@ -1108,7 +1116,8 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                                 )
                                             )
                                             .background(Color.White)
-                                            .width(320.dp)
+                                            .width(300.dp)
+                                            .border(1.dp, Color.Black)
                                     ) {
 
                                     }
@@ -1120,7 +1129,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                         modifier = Modifier
                                             .height(50.dp)
                                             .background(Color.Black)
-                                            .width(320.dp)
+                                            .width(300.dp)
                                     ) {
                                         Text(
                                             text = "Oil/Gas",
@@ -1131,7 +1140,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                     if (selectedWell!!.gasOilDepth - lastEndPoint > 0)
                                     {
                                         Text(
-                                            text = selectedWell!!.gasOilDepth.toString(),
+                                            text = selectedWell!!.gasOilDepth.toString()+ " m",
                                             color = Color.Black,
                                             style = MaterialTheme.typography.bodySmall,
                                             modifier = Modifier
