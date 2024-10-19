@@ -17,6 +17,8 @@ class httpgetwells {
             con.requestMethod = "GET"
             con.setRequestProperty("Content-Type", "application/json; utf-8")
             con.setRequestProperty("Accept", "application/json")
+            con.connectTimeout = 1000
+
 
             val status = con.responseCode
             if (status == 200) {

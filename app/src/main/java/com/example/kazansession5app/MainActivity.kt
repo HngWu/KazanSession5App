@@ -148,7 +148,7 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
     var wellType by remember { mutableStateOf("") }
     var gasOilDepth by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
-    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList()) }
+    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList<WellLayer>().sortedBy { it.startPoint }) }
     var layerName by remember { mutableStateOf("") }
     var fromDepth by remember { mutableStateOf("") }
     var toDepth by remember { mutableStateOf("") }
@@ -173,7 +173,7 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
         1 to "Well",
         2 to "Section"
     )
-
+    var initialName by remember { mutableStateOf("") }
     var EditedWell by remember { mutableStateOf<Well?>(null) }
 
     var wellList by remember { mutableStateOf<List<Well>>(emptyList()) }
@@ -199,6 +199,7 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
                 gasOilDepth = fetchedWell.gasOilDepth.toString()
                 capacity = fetchedWell.capacity.toString()
                 layers = fetchedWell.wellLayers.toList()
+                initialName = fetchedWell.wellName
             }
         }
     }
@@ -226,7 +227,7 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
             return
         }
 
-        if (layers.any { (from in it.startPoint until it.endPoint) || (to in it.startPoint until it.endPoint) }) {
+        if (layers.any { (from in it.startPoint+1 until it.endPoint) || (to in it.startPoint+1 until it.endPoint) }) {
             errorMessage = "Layers cannot overlap."
             return
         }
@@ -270,7 +271,7 @@ fun EditNewWellScreen(navController: NavController, wellId: Int) {
         }
 
 
-        if (wellName in wellList.map { it.wellName }) {
+        if (wellName in wellList.map { it.wellName } && wellName != initialName) {
             errorMessage = "Well name must be unique."
             return
         }
@@ -482,7 +483,7 @@ fun RegisterNewWellScreen(navController: NavController) {
     var wellType by remember { mutableStateOf("") }
     var gasOilDepth by remember { mutableStateOf("") }
     var capacity by remember { mutableStateOf("") }
-    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList()) }
+    var layers by remember { mutableStateOf<List<WellLayer>>(emptyList<WellLayer>().sortedBy { it.startPoint }) }
     var layerName by remember { mutableStateOf("") }
     var fromDepth by remember { mutableStateOf("") }
     var toDepth by remember { mutableStateOf("") }
@@ -542,7 +543,7 @@ fun RegisterNewWellScreen(navController: NavController) {
             return
         }
 
-        if (layers.any { (from in it.startPoint until it.endPoint) || (to in it.startPoint until it.endPoint) }) {
+        if (layers.any { (from in it.startPoint+1 until it.endPoint) || (to in it.startPoint+1 until it.endPoint) }) {
             errorMessage = "Layers cannot overlap."
             return
         }
@@ -825,51 +826,152 @@ private fun WellsScreen(navController: NavController, context: Context) {
 
         while (true) {
             val currentStatus = isNetworkAvailable(context)
-            if (currentStatus != isOnline) {
-                isOnline = currentStatus
-                if (isOnline) {
-                    showOnlineMessage = true
-                    // Fetch latest data from server
+            if (currentStatus == true) {
+                if (true) { // Fetch latest data from server
                     withContext(Dispatchers.IO) {
                         val fetchedWells = httpgetwells.getFunction()
                         if (fetchedWells != null) {
                             wellList = fetchedWells
                             if (fetchedWells.isNotEmpty()) {
+                                showOnlineMessage = true
+                                isOnline = currentStatus
+                                selectedWell = fetchedWells.map { it.id }.indexOf(selectedWell?.id).let {
+                                    if (it == -1) null else fetchedWells[it]
+                                }
                                 if (selectedWell == null) {
                                     selectedWell = fetchedWells[0]
                                 }
+                                lastUpdateDate =
+                                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                                // Store fetched wells in SharedPreferences
+                                val editor = sharedPreferences.edit()
+                                val json = JSONArray(fetchedWells.map { well ->
+                                    val jsonObject = JSONObject()
+                                    jsonObject.put("id", well.id)
+                                    jsonObject.put("wellTypeId", well.wellTypeId)
+                                    jsonObject.put("wellName", well.wellName)
+                                    jsonObject.put("gasOilDepth", well.gasOilDepth)
+                                    jsonObject.put("capacity", well.capacity)
+                                    jsonObject.put("wellTypeName", well.wellTypeName)
+                                    val layersArray = JSONArray()
+                                    for (layer in well.wellLayers) {
+                                        val layerObject = JSONObject()
+                                        layerObject.put("id", layer.id)
+                                        layerObject.put("wellId", layer.wellId)
+                                        layerObject.put("rockTypeId", layer.rockTypeId)
+                                        layerObject.put("startPoint", layer.startPoint)
+                                        layerObject.put("endPoint", layer.endPoint)
+                                        layerObject.put("rockName", layer.rockName)
+                                        layerObject.put("backgroundColor", layer.backgroundColor)
+                                        layersArray.put(layerObject)
+                                    }
+                                    jsonObject.put("wellLayers", layersArray)
+                                    jsonObject
+                                }).toString()
+                                editor.putString("lastUpdate", lastUpdateDate)
+                                editor.apply()
+                                editor.putString("wells", json)
+                                editor.apply()
+
                             }
-                            lastUpdateDate =
-                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                            // Store fetched wells in SharedPreferences
-                            val editor = sharedPreferences.edit()
-                            val json = JSONArray(fetchedWells.map { well ->
-                                val jsonObject = JSONObject()
-                                jsonObject.put("id", well.id)
-                                jsonObject.put("wellTypeId", well.wellTypeId)
-                                jsonObject.put("wellName", well.wellName)
-                                jsonObject.put("gasOilDepth", well.gasOilDepth)
-                                jsonObject.put("capacity", well.capacity)
-                                jsonObject.put("wellTypeName", well.wellTypeName)
-                                val layersArray = JSONArray()
-                                for (layer in well.wellLayers) {
-                                    val layerObject = JSONObject()
-                                    layerObject.put("id", layer.id)
-                                    layerObject.put("wellId", layer.wellId)
-                                    layerObject.put("rockTypeId", layer.rockTypeId)
-                                    layerObject.put("startPoint", layer.startPoint)
-                                    layerObject.put("endPoint", layer.endPoint)
-                                    layerObject.put("rockName", layer.rockName)
-                                    layerObject.put("backgroundColor", layer.backgroundColor)
-                                    layersArray.put(layerObject)
+                            else {
+                                showOfflineMessage = true
+                                isOnline = false
+                                showOfflineMessage = true
+                                // Get wells from SharedPreferences
+                                val json = sharedPreferences.getString("wells", null)
+                                lastUpdateDate =
+                                    sharedPreferences.getString("lastUpdate", "N/A") ?: "N/A"
+                                if (json != null) {
+                                    val jsonArray = JSONArray(json)
+                                    val cachedWells = mutableListOf<Well>()
+                                    for (i in 0 until jsonArray.length()) {
+                                        val wellJson = jsonArray.getJSONObject(i)
+                                        val layersArray = wellJson.getJSONArray("wellLayers")
+                                        val layers = mutableListOf<WellLayer>()
+                                        for (j in 0 until layersArray.length()) {
+                                            val layerJson = layersArray.getJSONObject(j)
+                                            layers.add(
+                                                WellLayer(
+                                                    layerJson.getInt("id"),
+                                                    layerJson.getInt("wellId"),
+                                                    layerJson.getInt("rockTypeId"),
+                                                    layerJson.getInt("startPoint"),
+                                                    layerJson.getInt("endPoint"),
+                                                    layerJson.getString("rockName"),
+                                                    layerJson.getString("backgroundColor")
+                                                )
+                                            )
+                                        }
+                                        cachedWells.add(
+                                            Well(
+                                                wellJson.getInt("id"),
+                                                wellJson.getInt("wellTypeId"),
+                                                wellJson.getString("wellName"),
+                                                wellJson.getInt("gasOilDepth"),
+                                                wellJson.getInt("capacity"),
+                                                layers,
+                                                wellJson.getString("wellTypeName")
+                                            )
+                                        )
+                                    }
+                                    wellList = cachedWells
+                                    if (cachedWells.isNotEmpty()) {
+                                        if (selectedWell == null) {
+                                            selectedWell = cachedWells[0]
+                                        }
+                                    }
                                 }
-                                jsonObject.put("wellLayers", layersArray)
-                                jsonObject
-                            }).toString()
-                            editor.putString("lastUpdate", lastUpdateDate)
-                            editor.apply()
-                            editor.putString("wells", json)
-                            editor.apply()
+                            }
+                        }
+                        else
+                        {
+                            showOfflineMessage = true
+                            isOnline = false
+                            showOfflineMessage = true
+                            // Get wells from SharedPreferences
+                            val json = sharedPreferences.getString("wells", null)
+                            lastUpdateDate = sharedPreferences.getString("lastUpdate", "N/A") ?: "N/A"
+                            if (json != null) {
+                                val jsonArray = JSONArray(json)
+                                val cachedWells = mutableListOf<Well>()
+                                for (i in 0 until jsonArray.length()) {
+                                    val wellJson = jsonArray.getJSONObject(i)
+                                    val layersArray = wellJson.getJSONArray("wellLayers")
+                                    val layers = mutableListOf<WellLayer>()
+                                    for (j in 0 until layersArray.length()) {
+                                        val layerJson = layersArray.getJSONObject(j)
+                                        layers.add(
+                                            WellLayer(
+                                                layerJson.getInt("id"),
+                                                layerJson.getInt("wellId"),
+                                                layerJson.getInt("rockTypeId"),
+                                                layerJson.getInt("startPoint"),
+                                                layerJson.getInt("endPoint"),
+                                                layerJson.getString("rockName"),
+                                                layerJson.getString("backgroundColor")
+                                            )
+                                        )
+                                    }
+                                    cachedWells.add(
+                                        Well(
+                                            wellJson.getInt("id"),
+                                            wellJson.getInt("wellTypeId"),
+                                            wellJson.getString("wellName"),
+                                            wellJson.getInt("gasOilDepth"),
+                                            wellJson.getInt("capacity"),
+                                            layers,
+                                            wellJson.getString("wellTypeName")
+                                        )
+                                    )
+                                }
+                                wellList = cachedWells
+                                if (cachedWells.isNotEmpty()) {
+                                    if (selectedWell == null) {
+                                        selectedWell = cachedWells[0]
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1100,6 +1202,8 @@ private fun WellsScreen(navController: NavController, context: Context) {
                                 }
                             }
                         }
+
+
                     }
                     item {
                         if (lastEndPoint != -1) {
@@ -1167,7 +1271,7 @@ private fun WellsScreen(navController: NavController, context: Context) {
                     }
                 }
             }
-            Toast.LENGTH_SHORT
+                        Toast.LENGTH_SHORT
 
             Row(
                 modifier = Modifier
